@@ -31,8 +31,17 @@ export class CharactersService {
   }
 
   search(name: string): Observable<Pagination> {
+    if (name) {
+      return this.http.get<Pagination>(
+        `${environment.baseUrl}/edge/characters?filter[name]=${name || ''}`
+      )
+    } else {
+      return this.getCharacters()
+    }
+  }
+
+  getPage(pageNumber: number): Observable<Pagination> {
     return this.http.get<Pagination>(
-      `${environment.baseUrl}/edge/characters?filter[name]=${name}`
-    )
+      `${environment.baseUrl}/edge/characters?page[limit]=10&page[offset]=${pageNumber}`)
   }
 }

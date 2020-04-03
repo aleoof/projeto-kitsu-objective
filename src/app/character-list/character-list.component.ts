@@ -1,49 +1,69 @@
-import { Component, OnInit, Input, OnChanges, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, Input, OnChanges, ViewChild, ElementRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { CharactersService } from '../services/characters.service';
 import { Pagination } from '../models/pagination';
 import { debounceTime, map, filter, retry } from 'rxjs/operators';
-import { pipe, fromEvent } from 'rxjs'
+import { pipe, fromEvent, Subscription } from 'rxjs'
+import { Character } from '../models/character';
 
 @Component({
   selector: 'app-character-list',
   templateUrl: './character-list.component.html',
   styleUrls: ['./character-list.component.scss']
 })
-export class CharacterListComponent implements OnInit, AfterViewInit {
+export class CharacterListComponent implements OnInit, AfterViewInit, OnDestroy {
   characters: Pagination;
-  pageNumber: number = 1
+  pageNumber: number
   pageAlterNumber: number = 1
+  searchSub: Subscription
+  modal: boolean
+  characterDetail: Character
+  innerWidth: number;
 
+  @ViewChild('searchChar', { static: false }) searchChar?: ElementRef;
   constructor(private caractersService: CharactersService) { }
 
-  @Input() searchCaracter: string;
-  @ViewChild('searchCharacter') searchCharacter: ElementRef;
 
 
-  async ngOnInit(): Promise<void> {
-    this.characters = await this.caractersService.getCharacters().toPromise()
-
-    console.log(this.characters);
-
+  ngOnInit(): void {
+    this.pageNumber = 1
+    this.caractersService.getCharacters().toPromise().then(response => {
+      this.characters = response
+    })
+    this.innerWidth = window.innerWidth;
+  }
+  ngOnDestroy() {
+    if (this.searchSub) {
+      this.searchSub.unsubscribe()
+    }
   }
 
   ngAfterViewInit() {
-    // this.search();
+    this.searchSub = fromEvent(this.searchChar.nativeElement, 'keyup').pipe(
+      map((event: KeyboardEvent) => {
+        return event.target['value']
+      }),
+      debounceTime(1000)
+    ).subscribe(name => {
+      this.search(name)
+    })
   }
 
-  async nextPage() {
-    this.characters = await this.caractersService.pagination(this.characters.links.next).toPromise()
+  nextPage() {
+    this.characters.data = null
+    this.caractersService.pagination(this.characters.links.next).toPromise().then(response => {
+      this.characters = response;
+    })
     this.pageNumber++
-    console.log(this.pageNumber)
-    console.log(this.characters);
   }
 
-  async previewPage() {
-    this.characters = await this.caractersService.pagination(this.characters.links.prev).toPromise()
+  previewPage() {
+    this.characters.data = null
+    this.caractersService.pagination(this.characters.links.prev).toPromise().then(response => {
+      this.characters = response
+    })
     if (this.pageNumber >= 1) {
       this.pageNumber--
     }
-    console.log(this.characters);
   }
 
   async firstPage() {
@@ -66,19 +86,22 @@ export class CharacterListComponent implements OnInit, AfterViewInit {
     return page
   }
 
-  async search(e?) {
-    fromEvent(this.searchCharacter.nativeElement, 'keyup').pipe(
-      map((event: any) => {
-        return event.target.value
-      }),
-      debounceTime(1000)
-    ).subscribe(async name => {
-      if (name) {
-        this.characters = await this.caractersService.search(name).toPromise()
-      } else {
-        this.characters = await this.caractersService.getCharacters().toPromise()
-      }
-    })
+  async search(name) {
+    this.characters = await this.caractersService.search(name).toPromise()
+
   }
 
+  openDetail(character: Character) {
+    this.modal = true
+    this.characterDetail = character
+  }
+  closeModal(e) {
+    this.modal = e
+  }
+
+  async getSelectePage(pageNum: number) {
+    this.pageNumber = pageNum
+    this.characters.data = null
+    this.characters = await this.caractersService.getPage(pageNum * 10).toPromise();
+  }
 }
